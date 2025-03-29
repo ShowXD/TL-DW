@@ -14,10 +14,10 @@ from docx import Document
 from docx.shared import Inches
 from datetime import timedelta
 
+OPEN_AI_KEY = ""
+THRESHOLD = 0.90  # 相似度門檻
+THREADS = 8  # 8個執行緒
 
-OPEN_AI_KEY = "" 
-THRESHOLD = 0.90 # 相似度門檻
-THREADS = 8 # 8個執行緒
 
 def start(file_name):
     # 建立資料夾、轉檔
@@ -31,6 +31,7 @@ def start(file_name):
     os.system(f'ffmpeg -i {file_name} -vf fps=1 tmp/{file_name.stem}/img/%d.png')
     os.system(f'ffmpeg -i {file_name} -ac 2 -f wav tmp/{file_name.stem}/out.wav')
 
+
 def get_files():
     # 取得所有檔案 & 排序
     files = os.listdir(f'tmp/{file_name.stem}/img')
@@ -38,24 +39,27 @@ def get_files():
     files = [os.path.join(f'tmp/{file_name.stem}/img', f) for f in files]
     return files
 
+
 def split_files(file_names):
     # 分割檔案
     step = len(file_names) // THREADS
     groups_name = [file_names[i:i + step] for i in range(0, len(file_names), step)]
     return groups_name
 
+
 def comp(files):
     # 相似度比對
-    for i,n in enumerate(files):
+    for i, n in enumerate(files):
         try:
             img1 = cv2.imread(n)
-            img2 = cv2.imread(files[i+1])
+            img2 = cv2.imread(files[i + 1])
             if uqi(img1, img2) > THRESHOLD:
                 os.remove(n)
             else:
-                print("Image", n, "is different from", files[i+1])
+                print("Image", n, "is different from", files[i + 1])
         except:
             pass
+
 
 def insert_average(lst):
     """
@@ -76,17 +80,17 @@ def insert_average(lst):
     return new_lst
 
 
-
-def split_audio(p,file_name):
+def split_audio(p, file_name):
     for i, j in enumerate(p):
         if i == 0:
             t1 = 0
         else:
-            t1 = p[i-1] * 1000
+            t1 = p[i - 1] * 1000
         t2 = j * 1000
         newAudio = AudioSegment.from_wav(f"tmp/{file_name}/out.wav")
         newAudio = newAudio[t1:t2]
         newAudio.export(f'tmp/{file_name}/audio/{j}.wav', format="wav")
+
 
 def audio2text(file_name):
     r = sr.Recognizer()
@@ -100,7 +104,7 @@ def audio2text(file_name):
                 res = "Error"
             with open(f'tmp/{file_name}/a2t/{wav_file.stem}.txt', 'w') as f:
                 f.write(res)
-    
+
 
 def img2text(file_name):
     for img_file in tqdm(list(Path(f'tmp/{file_name}/img').glob('*.png'))):
@@ -137,15 +141,15 @@ def ai_summary(file_name):
     image = [i.stem for i in image]
     image.sort(key=lambda f: int(''.join(filter(str.isdigit, f))))
 
-
     tess = Path(f'tmp/{file_name}/i2t') / (image[0] + '.txt')
     for t in tqdm(transcript):
-        tran = open(f"tmp/{file_name}/a2t/{t}.txt",'r').read()
+        tran = open(f"tmp/{file_name}/a2t/{t}.txt", 'r').read()
         if os.path.exists(f"tmp/{file_name}/i2t/{t}.txt"):
-            tess = open(f"tmp/{file_name}/i2t/{t}.txt",'r').read()
-        ai_res = chat_ai(tran,tess)
-        with open(f'tmp/{file_name}/ai/{t}.txt','w') as f:
+            tess = open(f"tmp/{file_name}/i2t/{t}.txt", 'r').read()
+        ai_res = chat_ai(tran, tess)
+        with open(f'tmp/{file_name}/ai/{t}.txt', 'w') as f:
             f.write(ai_res)
+
 
 def to_docx(file_name):
     document = Document()
@@ -155,18 +159,17 @@ def to_docx(file_name):
     transcript = [t.stem for t in transcript]
     transcript.sort(key=lambda f: int(''.join(filter(str.isdigit, f))))
 
-
-    tess = transcript[0] # te
+    tess = transcript[0]  # te
     for t in transcript:
         tran = t
         if os.path.exists(f"tmp/{file_name}/img/{t}.png"):
             tess = t
-        
+
         document.add_picture(f'tmp/{file_name}/img/{tess}.png', width=Inches(6.0))
 
-        lst_time = int(transcript[transcript.index(tran)-1]) if transcript.index(tran)-1 >= 0 else 0
+        lst_time = int(transcript[transcript.index(tran) - 1]) if transcript.index(tran) - 1 >= 0 else 0
         par = document.add_paragraph(f"{str(timedelta(seconds=lst_time))} ~ {str(timedelta(seconds=int(tran)))} ")
-        par.alignment = 1 # Center
+        par.alignment = 1  # Center
 
         document.add_heading('AI Summary', level=1)
         document.add_paragraph(open(f'tmp/{file_name}/ai/{tran}.txt').read())
@@ -178,8 +181,9 @@ def to_docx(file_name):
     document.save(f'{file_name}.docx')
     print("Output: ", f'{file_name}.docx')
 
+
 if __name__ == '__main__':
-    if OPEN_AI_KEY == "":
+    if OPEN_AI_KEY == "asdf":
         print("Please set OPEN_AI_KEY in Line 18")
         exit(0)
 
@@ -196,12 +200,12 @@ if __name__ == '__main__':
     print("[!] Start processing ...")
     start(file_name)
     file_names = get_files()
-    groups_name = split_files(file_names)
-    p = Pool(THREADS)
-    p.map(comp, groups_name)
-    
-    file_names = get_files()
-    comp(file_names)
+    # groups_name = split_files(file_names)
+    # p = Pool(THREADS)
+    # p.map(comp, groups_name)
+
+    # file_names = get_files()
+    # comp(file_names)
 
     print("[!] Start split audio ...")
     p = [str(i.stem) for i in list(Path(f'tmp/{file_name.stem}/img').glob('*.png'))]
